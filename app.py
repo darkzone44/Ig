@@ -1,4 +1,4 @@
-import os
+      import os
 import threading
 import time
 from datetime import datetime
@@ -12,20 +12,12 @@ STOP_EVENT = threading.Event()
 LOGS = []
 SESSION_FILE = "session.json"
 
-
 def log(msg):
     LOGS.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
     print(msg)
 
-
 def run_bot(username, password, welcome_messages, group_ids, delay, poll_interval, use_custom_name):
     cl = Client()
-
-    # 🔥 Login Error Fix + Session Stable
-    cl.set_locale("en_US")
-    cl.set_user_agent(Client().user_agent)
-    cl.generate_device(username)
-
     try:
         if os.path.exists(SESSION_FILE):
             cl.load_settings(SESSION_FILE)
@@ -42,6 +34,7 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
 
     log("🤖 Bot started — Monitoring for NEW members...")
 
+    # Track existing members initially
     known_members = {}
     for gid in group_ids:
         try:
@@ -59,23 +52,29 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
             for gid in group_ids:
                 if STOP_EVENT.is_set():
                     break
-
                 try:
                     group = cl.direct_thread(gid)
                     current_members = {user.pk for user in group.users}
+
+                    # Find NEW members (not in known_members)
                     new_members = current_members - known_members[gid]
 
                     if new_members:
                         for user in group.users:
                             if user.pk in new_members and user.username != username:
+                                if STOP_EVENT.is_set():
+                                    break
+
                                 for msg in welcome_messages:
                                     if STOP_EVENT.is_set():
                                         break
+                                    if use_custom_name:
+                                        final_msg = f"@{user.username} {msg}"
+                                    else:
+                                        final_msg = msg
 
-                                    final_msg = (f"@{user.username} {msg}" if use_custom_name else msg)
                                     cl.direct_send(final_msg, thread_ids=[gid])
                                     welcome_count += 1
-
                                     log(f"🎉 [{welcome_count}] Welcomed @{user.username} (Name: {user.full_name}) in group {gid}")
                                     log(f"   📤 Sent: '{final_msg}'")
 
@@ -87,7 +86,6 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
                                 known_members[gid].add(user.pk)
 
                     known_members[gid] = current_members
-
                 except Exception as e:
                     log(f"⚠️ Error checking group {gid}: {e}")
 
@@ -102,13 +100,13 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
         except Exception as e:
             log(f"⚠️ Loop error: {e}")
 
-    log(f"🛑 Bot stopped. Total welcomed: {welcome_count}")
+    log(f"🛑 Bot stopped. Total new members welcomed: {welcome_count}")
 
+# ------------------- Flask Routes -------------------
 
 @app.route("/")
 def index():
     return render_template_string(PAGE_HTML)
-
 
 @app.route("/start", methods=["POST"])
 def start_bot():
@@ -129,15 +127,10 @@ def start_bot():
         return jsonify({"message": "⚠️ Please fill all required fields."})
 
     STOP_EVENT.clear()
-    BOT_THREAD = threading.Thread(
-        target=run_bot,
-        args=(username, password, welcome, group_ids, delay, poll, use_custom_name),
-        daemon=True
-    )
+    BOT_THREAD = threading.Thread(target=run_bot, args=(username, password, welcome, group_ids, delay, poll, use_custom_name), daemon=True)
     BOT_THREAD.start()
     log("🚀 Bot thread started.")
     return jsonify({"message": "✅ Bot started! Monitoring for new members..."})
-
 
 @app.route("/stop", methods=["POST"])
 def stop_bot():
@@ -151,10 +144,10 @@ def stop_bot():
     log("✅ Bot stopped completely.")
     return jsonify({"message": "✅ Bot stopped successfully!"})
 
-
 @app.route("/logs")
 def get_logs():
     return jsonify({"logs": LOGS[-200:]})
+
 
 PAGE_HTML = """
 <!DOCTYPE html>
