@@ -40,16 +40,14 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
     while not STOP_EVENT.is_set():
         try:
             for gid in group_ids:
-                if STOP_EVENT.is_set():  # Check before each group
+                if STOP_EVENT.is_set():
                     break
                     
                 try:
-                    # Send ALL welcome messages continuously
                     for msg in welcome_messages:
-                        if STOP_EVENT.is_set():  # Check before each message
+                        if STOP_EVENT.is_set():
                             break
                             
-                        # Add custom name/username to message
                         if custom_name:
                             final_msg = f"{custom_name} {msg}"
                         else:
@@ -59,7 +57,6 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
                         message_count += 1
                         log(f"✅ [{message_count}] Sent: '{final_msg}' to group {gid}")
                         
-                        # Check stop during delay
                         for _ in range(delay):
                             if STOP_EVENT.is_set():
                                 break
@@ -74,7 +71,6 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
             if STOP_EVENT.is_set():
                 break
             
-            # Poll interval between message cycles with stop check
             log(f"⏸️ Waiting {poll_interval} seconds before next message cycle...")
             for _ in range(poll_interval):
                 if STOP_EVENT.is_set():
@@ -123,7 +119,6 @@ def stop_bot():
     STOP_EVENT.set()
     log("🛑 Stop signal sent. Stopping bot...")
     
-    # Wait for thread to finish (max 5 seconds)
     if BOT_THREAD:
         BOT_THREAD.join(timeout=5)
     
@@ -134,7 +129,6 @@ def stop_bot():
 @app.route("/logs")
 def get_logs():
     return jsonify({"logs": LOGS[-200:]})
-
 
 PAGE_HTML = """
 <!DOCTYPE html>
